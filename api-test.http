@@ -1,0 +1,316 @@
+### P-01. 상품 등록
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "name": "1969년 아폴로 11호 기념 우표",
+  "description": "발행 당시 미사용 상태로 보관된 기념 우표입니다.",
+  "imageUrl": "https://example.com/images/stamp.jpg",
+  "itemCondition": "GOOD",
+  "rarity": "RARE",
+  "estimatedValue": 85000
+}
+
+### P-01-2. 상품 등록 (두 번째)
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "name": "1988 서울올림픽 기념 주화",
+  "itemCondition": "NEW",
+  "rarity": "EPIC",
+  "estimatedValue": 250000
+}
+
+### 검증 실패 — 필수 필드 누락
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "description": "이름이 없습니다"
+}
+
+### 검증 실패 — 예상가치 0
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "name": "테스트",
+  "itemCondition": "GOOD",
+  "rarity": "COMMON",
+  "estimatedValue": 0
+}
+
+### P-02. 상품 목록
+GET http://localhost:8080/api/products
+
+### P-03. 상품 상세
+GET http://localhost:8080/api/products/1
+
+### P-03-2. 없는 상품 조회 (404 확인)
+GET http://localhost:8080/api/products/999
+
+### P-04. 상품 수정 (일부 필드만)
+PATCH http://localhost:8080/api/products/1
+Content-Type: application/json
+
+{
+  "estimatedValue": 92000,
+  "itemCondition": "FAIR"
+}
+
+### P-05. 상품 삭제
+DELETE http://localhost:8080/api/products/2
+
+### 삭제 확인 (404 나와야 함)
+GET http://localhost:8080/api/products/2
+
+
+###############################################
+# 경매 API
+###############################################
+
+### A-01. 경매 등록
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "startPrice": 8500,
+  "startAt": "2026-08-21T21:00:00",
+  "endAt": "2026-08-21T21:10:00"
+}
+
+### A-01-2. 경매 등록 (두 번째)
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "startPrice": 30000,
+  "startAt": "2026-08-21T22:00:00",
+  "endAt": "2026-08-21T22:05:00"
+}
+
+### 실패 — 없는 상품 (404)
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "productId": 999,
+  "startPrice": 8500,
+  "startAt": "2026-08-21T21:00:00",
+  "endAt": "2026-08-21T21:10:00"
+}
+
+### 실패 — 종료가 시작보다 앞 (400)
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "startPrice": 8500,
+  "startAt": "2026-08-21T21:10:00",
+  "endAt": "2026-08-21T21:00:00"
+}
+
+### 실패 — 필수 누락 (400)
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "startPrice": 0
+}
+
+### A-02. 경매 목록 (전체)
+GET http://localhost:8080/api/auctions
+
+### A-02-2. 상태 필터 — SCHEDULED
+GET http://localhost:8080/api/auctions?status=SCHEDULED
+
+### A-02-3. 상태 필터 — RUNNING (0건이어야 함)
+GET http://localhost:8080/api/auctions?status=RUNNING
+
+### 실패 — 잘못된 status 값 (400) 근데 서버 고장 500 떠서 GlobalExceptionHandler 수정
+GET http://localhost:8080/api/auctions?status=WRONG
+
+### A-03. 경매 상세
+GET http://localhost:8080/api/auctions/1
+
+### 실패 — 없는 경매 (404)
+GET http://localhost:8080/api/auctions/999
+
+
+###############################################
+# 회원 (임시)
+###############################################
+
+### 회원 A 등록
+POST http://localhost:8080/api/users
+Content-Type: application/json
+
+{
+  "email": "a@example.com",
+  "nickname": "bidderA"
+}
+
+### 회원 B 등록
+POST http://localhost:8080/api/users
+Content-Type: application/json
+
+{
+  "email": "b@example.com",
+  "nickname": "bidderB"
+}
+
+### 회원 조회 (포인트 확인용)
+GET http://localhost:8080/api/users/1
+
+
+###############################################
+# 입찰 테스트
+###############################################
+
+### [준비] 진행 중인 경매 생성 (startAt 과거 / endAt 미래)
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "startPrice": 8500,
+  "startAt": "2026-08-23T00:00:00",
+  "endAt": "2026-08-31T23:59:59"
+}
+
+### [실패] 조회 기록 없이 입찰 → 403
+# 위에서 받은 경매 id로 바꿔서 실행 (예: 5)
+POST http://localhost:8080/api/auctions/1/bids
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "amount": 10000
+}
+
+### [준비] A 상품 조회 인정
+POST http://localhost:8080/api/products/1/view
+Content-Type: application/json
+
+{ "userId": 1 }
+
+### [준비] B 상품 조회 인정
+POST http://localhost:8080/api/products/1/view
+Content-Type: application/json
+
+{ "userId": 2 }
+
+### [준비] 조회 중복 호출 (200 나와야 함 — 멱등)
+POST http://localhost:8080/api/products/1/view
+Content-Type: application/json
+
+{ "userId": 1 }
+
+### ★ A 입찰 10,000
+POST http://localhost:8080/api/auctions/1/bids
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "amount": 10000
+}
+
+### A 포인트 확인 (90,000이어야 함)
+GET http://localhost:8080/api/users/1
+
+### ★ B 입찰 12,000 → A 환급되어야 함
+POST http://localhost:8080/api/auctions/1/bids
+Content-Type: application/json
+
+{
+  "userId": 2,
+  "amount": 12000
+}
+
+### A 포인트 확인 (100,000으로 복구되어야 함) ★★
+GET http://localhost:8080/api/users/1
+
+### B 포인트 확인 (88,000이어야 함)
+GET http://localhost:8080/api/users/2
+
+### 입찰 이력
+GET http://localhost:8080/api/auctions/1/bids
+
+### [실패] 현재가보다 낮은 금액 → 400
+POST http://localhost:8080/api/auctions/1/bids
+Content-Type: application/json
+
+{ "userId": 1, "amount": 11000 }
+
+### [실패] 최소 증가액 미만 (12,500) → 400
+POST http://localhost:8080/api/auctions/1/bids
+Content-Type: application/json
+
+{ "userId": 1, "amount": 12500 }
+
+### [실패] 포인트 초과 → 400
+POST http://localhost:8080/api/auctions/1/bids
+Content-Type: application/json
+
+{ "userId": 1, "amount": 500000 }
+
+### [실패] 없는 사용자 → 404
+POST http://localhost:8080/api/auctions/1/bids
+Content-Type: application/json
+
+{ "userId": 999, "amount": 20000 }
+
+### [실패] 시작 전 경매 → 409 (기존 경매 id 사용)
+POST http://localhost:8080/api/auctions/1/bids
+Content-Type: application/json
+
+{ "userId": 1, "amount": 20000 }
+
+### 롤백 확인 — 실패 후에도 포인트 그대로인가
+GET http://localhost:8080/api/users/2
+
+# 8/24 스케쥴러
+### [Scheduler 테스트] 곧 끝나는 경매 생성 (12분소요)
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "startPrice": 5000,
+  "startAt": "2026-08-24T13:00:00",
+  "endAt": "2026-08-24T13:05:00"
+}
+
+
+### [Scheduler 테스트] 지금 시작 / 3분 뒤 종료
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "startPrice": 5000,
+  "startAt": "2026-08-24T12:00:00",
+  "endAt": "2026-08-24T12:53:00"
+}
+
+### 경매 4에 A가 6,000 입찰 (10초)
+POST http://localhost:8080/api/auctions/4/bids
+Content-Type: application/json
+
+{ "userId": 1, "amount": 6000 }
+
+
+### [유찰 테스트] 이미 끝난 시각
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "startPrice": 3000,
+  "startAt": "2026-08-24T10:00:00",
+  "endAt": "2026-08-24T10:05:00"
+}
