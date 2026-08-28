@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AuctionPlay — 화면 시안</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   1. 디자인 토큰
+   ─────────────────────────────────────────────────────────────
+   컨셉: "경매장의 낙찰 보드"
+   경매의 주인공은 이미지가 아니라 숫자다. 그래서 디스플레이 서체를
+   장식 세리프가 아니라 모노 숫자로 잡았다. 현재가·남은 시간·증가액이
+   화면에서 가장 큰 요소가 된다.
+
+   지면(paper)은 차분한 스톤 그레이, 진행 중인 경매만 어두운 보드로
+   반전시켜 "지금 살아있는 것"을 한눈에 구분한다.
+   ═══════════════════════════════════════════════════════════════ */
+:root{
+  /* 색 */
+  --paper    : #E7E8E3;   /* 지면. 낙찰장 바닥 */
+  --surface  : #FAFAF8;   /* 카드 */
+  --board    : #17191F;   /* 라이브 보드 (반전 패널) */
+  --board-2  : #21242C;   /* 보드 내부 단 */
+  --ink      : #14161A;
+  --ink-mute : #6A6E76;
+  --line     : #D3D5CE;
+  --line-dark: #32363F;
+
+  --brass    : #C08A2E;   /* 낙찰·강조. 경매봉 놋쇠 */
+  --alert    : #C4362E;   /* 마감 임박 · 상위 입찰 밀림 */
+  --gain     : #2E6B4E;   /* 수익 */
+  --loss     : #A33A32;   /* 손실 */
+
+  /* 타이포 */
+  --font-num : 'Azeret Mono', ui-monospace, monospace;
+  --font-body: 'Pretendard', system-ui, sans-serif;
+
+  /* 타입 스케일 */
+  --t-board  : 56px;
+  --t-display: 32px;
+  --t-title  : 20px;
+  --t-body   : 15px;
+  --t-caption: 13px;
+  --t-micro  : 11px;
+
+  /* 간격 — 8px 배수 */
+  --s1: 4px;  --s2: 8px;  --s3: 16px;
+  --s4: 24px; --s5: 32px; --s6: 48px; --s7: 64px;
+
+  --radius: 3px;
+  --maxw  : 1280px;
+}
+
+/* ═══ 2. 리셋 ═══ */
+*,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+html{ -webkit-text-size-adjust:100%; }
+body{
+  font-family:var(--font-body);
+  font-size:var(--t-body);
+  line-height:1.6;
+  color:var(--ink);
+  background:var(--paper);
+  -webkit-font-smoothing:antialiased;
+}
+img{ display:block; max-width:100%; }
+button{ font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+a{ color:inherit; text-decoration:none; }
+ul{ list-style:none; }
+:focus-visible{ outline:2px solid var(--brass); outline-offset:2px; }
+
+@media (prefers-reduced-motion:reduce){
+  *{ animation:none !important; transition:none !important; }
+}
+
+/* 숫자는 항상 등폭 + 표 정렬 */
+.num{ font-family:var(--font-num); font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+
+/* ═══════════════════════════════════════════════════════════════
+   3. 시안 전용 상단 바  ← 제품 UI 아님
+   ═══════════════════════════════════════════════════════════════ */
+.mock-bar{
+  position:sticky; top:0; z-index:100;
+  display:flex; align-items:center; gap:var(--s3);
+  padding:10px var(--s4);
+  background:#0E1014; color:#fff;
+  font-size:13px; overflow-x:auto;
+}
+.mock-bar__label{
+  font-family:var(--font-num); font-size:10px; font-weight:700;
+  letter-spacing:.14em; color:#7A7F89; white-space:nowrap;
+}
+.mock-bar__nav{ display:flex; gap:2px; }
+.mock-bar__btn{
+  padding:5px 10px; border-radius:2px; white-space:nowrap;
+  color:#A9AEB8; font-size:13px;
+}
+.mock-bar__btn[aria-current="true"]{ background:var(--brass); color:#0E1014; font-weight:600; }
+
+/* ═══════════════════════════════════════════════════════════════
+   4. 공통 레이아웃
+   ═══════════════════════════════════════════════════════════════ */
+.screen{ display:none; }
+.screen.is-active{ display:block; }
+.wrap{ max-width:var(--maxw); margin:0 auto; padding:0 var(--s4); }
+
+.header{
+  position:sticky; top:41px; z-index:50;
+  background:var(--paper);
+  border-bottom:1px solid var(--line);
+}
+.header__inner{
+  max-width:var(--maxw); margin:0 auto; padding:var(--s3) var(--s4);
+  display:flex; align-items:center; justify-content:space-between; gap:var(--s4);
+}
+.logo{
+  font-family:var(--font-num); font-weight:900; font-size:18px;
+  letter-spacing:-.04em;
+}
+.logo span{ color:var(--brass); }
+.nav{ display:flex; gap:var(--s4); font-size:var(--t-caption); }
+.nav a{ color:var(--ink-mute); padding-bottom:2px; }
+.nav a[aria-current="page"]{ color:var(--ink); border-bottom:1.5px solid var(--brass); }
+
+/* 보유 포인트 — 항상 헤더에 고정. 입찰의 전제 조건이라 숨기지 않는다 */
+.purse{
+  display:flex; align-items:baseline; gap:var(--s2);
+  padding:6px var(--s3);
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.purse__label{ font-size:var(--t-micro); color:var(--ink-mute); letter-spacing:.06em; }
+.purse__value{ font-family:var(--font-num); font-weight:700; font-size:15px; }
+
+/* --- 섹션 제목 --- */
+.sec-head{
+  display:flex; align-items:flex-end; justify-content:space-between;
+  gap:var(--s4); padding:var(--s6) 0 var(--s4);
+}
+.sec-title{ font-size:var(--t-display); font-weight:800; letter-spacing:-.03em; line-height:1.15; }
+.sec-sub{ color:var(--ink-mute); font-size:var(--t-caption); margin-top:var(--s1); }
+
+/* 라벨 — 경매장의 로트 번호 표기를 그대로 쓴다 */
+.lot{
+  font-family:var(--font-num); font-weight:700; font-size:var(--t-micro);
+  letter-spacing:.1em; color:var(--ink-mute);
+}
+
+/* --- 버튼 --- */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:var(--s2);
+  padding:11px var(--s4); border-radius:var(--radius);
+  border:1px solid var(--ink); background:var(--ink); color:#fff;
+  font-size:var(--t-caption); font-weight:600;
+  transition:transform .08s ease, background .15s ease;
+}
+.btn:active{ transform:translateY(1px); }
+.btn--brass{ background:var(--brass); border-color:var(--brass); color:#14161A; }
+.btn--ghost{ background:transparent; color:var(--ink); border-color:var(--line); }
+.btn--ghost:hover{ border-color:var(--ink); }
+.btn--sm{ padding:7px var(--s3); font-size:var(--t-micro); }
+.btn--lg{ padding:15px var(--s5); font-size:15px; width:100%; }
+.btn:disabled{ opacity:.35; cursor:not-allowed; }
+
+/* --- 상태 배지 --- */
+.badge{
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 8px; border-radius:2px;
+  font-family:var(--font-num); font-size:var(--t-micro); font-weight:700;
+  letter-spacing:.06em;
+}
+.badge--live   { background:var(--alert); color:#fff; }
+.badge--sched  { background:#DBDDD6; color:var(--ink-mute); }
+.badge--closed { background:#2B2E36; color:#B7BCC5; }
+.badge--cancel { background:transparent; color:var(--ink-mute); border:1px dashed var(--line); }
+.dot{ width:5px; height:5px; border-radius:50%; background:currentColor; animation:pulse 1.4s infinite; }
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* 희귀도 — 색이 아니라 획 수로 구분. 색맹 대응 */
+.rarity{ font-family:var(--font-num); font-size:var(--t-micro); font-weight:700; color:var(--ink-mute); letter-spacing:.08em; }
+
+/* ═══════════════════════════════════════════════════════════════
+   5. 경매 카드 (목록)
+   ═══════════════════════════════════════════════════════════════ */
+.grid{
+  display:grid; gap:var(--s3);
+  grid-template-columns:repeat(auto-fill, minmax(272px, 1fr));
+  padding-bottom:var(--s7);
+}
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  overflow:hidden; display:flex; flex-direction:column;
+  transition:border-color .15s ease, transform .15s ease;
+}
+.card:hover{ border-color:var(--ink); transform:translateY(-2px); }
+.card__thumb{
+  aspect-ratio:4/3; background:#DDDED8; position:relative;
+  display:grid; place-items:center;
+}
+.card__thumb span{ font-family:var(--font-num); font-size:11px; color:#9A9E97; letter-spacing:.1em; }
+.card__flag{ position:absolute; top:var(--s2); left:var(--s2); }
+.card__body{ padding:var(--s3); display:flex; flex-direction:column; gap:var(--s2); flex:1; }
+.card__meta{ display:flex; justify-content:space-between; align-items:center; }
+.card__name{ font-weight:600; font-size:var(--t-body); line-height:1.35; }
+.card__rows{ margin-top:auto; padding-top:var(--s2); border-top:1px solid var(--line); }
+.row{
+  display:flex; justify-content:space-between; align-items:baseline;
+  padding:3px 0; font-size:var(--t-caption);
+}
+.row__k{ color:var(--ink-mute); font-size:var(--t-micro); }
+.row__v{ font-family:var(--font-num); font-weight:700; }
+.row__v--big{ font-size:19px; }
+.row__v--alert{ color:var(--alert); }
+
+/* 남은 시간 게이지 — 카드 하단에 얇게. 시간이 곧 잔량이다 */
+.timebar{ height:3px; background:var(--line); position:relative; overflow:hidden; }
+.timebar__fill{ height:100%; background:var(--alert); transition:width 1s linear; }
+.timebar__fill--calm{ background:var(--ink-mute); }
+
+/* ═══════════════════════════════════════════════════════════════
+   6. 라이브 보드 ★ 시그니처
+   ─────────────────────────────────────────────────────────────
+   진행 중인 경매만 어두운 패널로 반전된다. 현재가는 화면에서 가장 큰
+   요소이고, 남은 시간은 위에서 아래로 줄어드는 획으로 표시한다.
+   ═══════════════════════════════════════════════════════════════ */
+.board{
+  background:var(--board); color:#fff; border-radius:var(--radius);
+  overflow:hidden; position:relative;
+}
+.board__strip{ height:4px; background:var(--line-dark); }
+.board__strip i{ display:block; height:100%; background:var(--alert); width:62%; transition:width 1s linear; }
+.board__inner{ padding:var(--s5); }
+.board__top{
+  display:flex; justify-content:space-between; align-items:flex-start;
+  gap:var(--s4); flex-wrap:wrap;
+}
+.board__lot{ font-family:var(--font-num); font-size:var(--t-micro); letter-spacing:.14em; color:#8A909B; }
+.board__title{ font-size:var(--t-title); font-weight:700; margin-top:var(--s1); letter-spacing:-.02em; }
+.board__clock{ text-align:right; }
+.board__clock-k{ font-size:var(--t-micro); color:#8A909B; letter-spacing:.08em; }
+.board__clock-v{ font-family:var(--font-num); font-size:30px; font-weight:900; color:var(--alert); letter-spacing:-.03em; }
+
+.board__price{ margin:var(--s5) 0 var(--s3); display:flex; align-items:flex-end; gap:var(--s3); flex-wrap:wrap; }
+.board__price-v{
+  font-family:var(--font-num); font-weight:900; font-size:var(--t-board);
+  line-height:1; letter-spacing:-.045em;
+}
+.board__price-u{ font-family:var(--font-num); font-size:20px; font-weight:700; color:#8A909B; }
+.board__price-delta{
+  font-family:var(--font-num); font-size:var(--t-caption); font-weight:700;
+  color:var(--brass); padding-bottom:6px;
+}
+.board__leader{
+  display:flex; align-items:center; gap:var(--s2);
+  font-size:var(--t-caption); color:#B7BCC5;
+  padding-top:var(--s3); border-top:1px solid var(--line-dark);
+}
+.board__leader strong{ color:#fff; }
+.you{ background:var(--brass); color:#14161A; padding:1px 6px; border-radius:2px; font-size:var(--t-micro); font-weight:700; }
+
+/* 입찰 사다리 — 다음에 낼 수 있는 금액을 미리 계단으로 보여준다.
+   최소 증가액 1,000P 규칙을 설명 없이 보이게 하는 장치 */
+.ladder{ display:flex; gap:var(--s2); margin-top:var(--s4); flex-wrap:wrap; }
+.ladder__btn{
+  flex:1; min-width:104px; padding:var(--s3) var(--s2);
+  background:var(--board-2); border:1px solid var(--line-dark); border-radius:var(--radius);
+  color:#fff; text-align:center; transition:border-color .12s ease, background .12s ease;
+}
+.ladder__btn:hover{ border-color:var(--brass); background:#282C35; }
+.ladder__btn[aria-pressed="true"]{ border-color:var(--brass); background:#2E3038; }
+.ladder__inc{ font-family:var(--font-num); font-size:var(--t-micro); color:var(--brass); font-weight:700; }
+.ladder__val{ font-family:var(--font-num); font-size:17px; font-weight:700; margin-top:2px; }
+
+.board__act{ display:flex; gap:var(--s2); margin-top:var(--s4); align-items:center; }
+.board__act .btn{ flex:1; }
+.board__note{ font-size:var(--t-micro); color:#8A909B; margin-top:var(--s2); }
+
+/* 상위 입찰에 밀린 상태 */
+.outbid{
+  display:flex; align-items:center; gap:var(--s2);
+  margin-top:var(--s3); padding:var(--s3);
+  background:rgba(196,54,46,.12); border-left:3px solid var(--alert);
+  font-size:var(--t-caption); color:#F0C9C6;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   7. 입찰 이력
+   ═══════════════════════════════════════════════════════════════ */
+.bids{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); }
+.bids__head{
+  padding:var(--s3) var(--s4); border-bottom:1px solid var(--line);
+  display:flex; justify-content:space-between; align-items:center;
+}
+.bids__head h3{ font-size:var(--t-caption); font-weight:700; letter-spacing:.02em; }
+.bids__count{ font-family:var(--font-num); font-size:var(--t-micro); color:var(--ink-mute); }
+.bid{
+  display:grid; grid-template-columns:auto 1fr auto; gap:var(--s3);
+  align-items:center; padding:11px var(--s4); border-bottom:1px solid var(--line);
+  font-size:var(--t-caption);
+}
+.bid:last-child{ border-bottom:none; }
+.bid--top{ background:rgba(192,138,46,.09); }
+.bid__rank{ font-family:var(--font-num); font-size:var(--t-micro); color:var(--ink-mute); width:20px; }
+.bid__who{ display:flex; align-items:center; gap:var(--s2); }
+.bid__amt{ font-family:var(--font-num); font-weight:700; }
+.bid__time{ font-family:var(--font-num); font-size:var(--t-micro); color:var(--ink-mute); }
+
+/* ═══════════════════════════════════════════════════════════════
+   8. 상품 상세 — 5초 체류 규칙 ★
+   ─────────────────────────────────────────────────────────────
+   "상세를 5초 이상 본 사용자만 입찰할 수 있다"는 이 서비스만의 규칙을
+   숨기지 않고 진행 막대로 드러낸다. 규칙을 설명문으로 쓰는 대신
+   눈앞에서 차오르게 만든다.
+   ═══════════════════════════════════════════════════════════════ */
+.detail{ display:grid; grid-template-columns:1.1fr 1fr; gap:var(--s6); padding:var(--s5) 0 var(--s7); }
+.detail__img{ aspect-ratio:1; background:#DDDED8; border-radius:var(--radius); display:grid; place-items:center; }
+.detail__img span{ font-family:var(--font-num); font-size:12px; color:#9A9E97; letter-spacing:.1em; }
+.detail__title{ font-size:var(--t-display); font-weight:800; letter-spacing:-.03em; line-height:1.15; margin:var(--s2) 0 var(--s3); }
+.detail__desc{ color:var(--ink-mute); font-size:var(--t-caption); line-height:1.75; }
+
+.spec{ margin-top:var(--s5); border-top:1px solid var(--line); }
+.spec__row{ display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line); font-size:var(--t-caption); }
+.spec__k{ color:var(--ink-mute); }
+.spec__v{ font-family:var(--font-num); font-weight:700; }
+
+.gate{
+  margin-top:var(--s5); padding:var(--s4);
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+}
+.gate__head{ display:flex; justify-content:space-between; align-items:baseline; }
+.gate__k{ font-size:var(--t-caption); font-weight:600; }
+.gate__t{ font-family:var(--font-num); font-size:var(--t-caption); font-weight:700; color:var(--brass); }
+.gate__bar{ height:6px; background:var(--line); border-radius:99px; overflow:hidden; margin:var(--s3) 0 var(--s2); }
+.gate__fill{ height:100%; width:0%; background:var(--brass); transition:width .1s linear; }
+.gate__msg{ font-size:var(--t-micro); color:var(--ink-mute); }
+.gate.is-done .gate__fill{ background:var(--gain); }
+.gate.is-done .gate__t{ color:var(--gain); }
+
+/* ═══════════════════════════════════════════════════════════════
+   9. 낙찰 결과 — 예상가치 대비 손익
+   ═══════════════════════════════════════════════════════════════ */
+.result{ max-width:660px; margin:var(--s7) auto; }
+.result__board{ background:var(--board); color:#fff; border-radius:var(--radius); padding:var(--s6) var(--s5); text-align:center; }
+.result__hammer{ font-family:var(--font-num); font-size:var(--t-micro); letter-spacing:.2em; color:var(--brass); }
+.result__title{ font-size:var(--t-title); font-weight:700; margin:var(--s3) 0 var(--s5); }
+.result__price{ font-family:var(--font-num); font-size:var(--t-board); font-weight:900; letter-spacing:-.045em; line-height:1; }
+.result__unit{ font-family:var(--font-num); font-size:18px; color:#8A909B; margin-left:6px; }
+
+.ledger{ margin-top:var(--s5); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); }
+.ledger__row{ display:flex; justify-content:space-between; align-items:center; padding:var(--s3) var(--s4); border-bottom:1px solid var(--line); font-size:var(--t-caption); }
+.ledger__row:last-child{ border-bottom:none; }
+.ledger__row--sum{ background:#F1F2EE; }
+.ledger__v{ font-family:var(--font-num); font-weight:700; }
+.gain{ color:var(--gain); }
+.loss{ color:var(--loss); }
+
+/* ═══════════════════════════════════════════════════════════════
+   10. 내역 테이블 (입찰 / 포인트)
+   ═══════════════════════════════════════════════════════════════ */
+.tabs{ display:flex; gap:var(--s1); border-bottom:1px solid var(--line); margin-bottom:var(--s4); }
+.tab{
+  padding:var(--s2) var(--s3); font-size:var(--t-caption); color:var(--ink-mute);
+  border-bottom:2px solid transparent; margin-bottom:-1px;
+}
+.tab[aria-selected="true"]{ color:var(--ink); font-weight:600; border-bottom-color:var(--brass); }
+
+.table{ width:100%; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+.table th, .table td{ padding:11px var(--s3); text-align:left; font-size:var(--t-caption); border-bottom:1px solid var(--line); }
+.table th{ font-size:var(--t-micro); color:var(--ink-mute); font-weight:600; letter-spacing:.04em; background:#F1F2EE; }
+.table td.n{ font-family:var(--font-num); font-weight:700; text-align:right; }
+.table th.n{ text-align:right; }
+.table tr:last-child td{ border-bottom:none; }
+
+/* 포인트 유형 — 부호가 곧 방향 */
+.tx{ font-family:var(--font-num); font-size:var(--t-micro); font-weight:700; letter-spacing:.04em; }
+.tx--in{ color:var(--gain); }
+.tx--out{ color:var(--ink-mute); }
+
+/* ═══════════════════════════════════════════════════════════════
+   11. 폼 (관리자 상품 등록 · 로그인)
+   ═══════════════════════════════════════════════════════════════ */
+.form{ max-width:560px; margin:var(--s6) auto var(--s7); }
+.form__card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s5); }
+.field{ margin-bottom:var(--s4); }
+.field__label{ display:block; font-size:var(--t-caption); font-weight:600; margin-bottom:var(--s2); }
+.field__req{ color:var(--alert); margin-left:3px; }
+.field__input{
+  width:100%; padding:11px var(--s3);
+  border:1px solid var(--line); border-radius:var(--radius);
+  background:#fff; font:inherit; font-size:var(--t-caption);
+}
+.field__input:focus{ outline:none; border-color:var(--ink); }
+.field__input.is-error{ border-color:var(--alert); background:#FDF6F5; }
+.field__hint{ font-size:var(--t-micro); color:var(--ink-mute); margin-top:5px; }
+.field__err{ font-size:var(--t-micro); color:var(--alert); margin-top:5px; font-weight:600; }
+.field--num .field__input{ font-family:var(--font-num); font-weight:700; }
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
+
+/* 서버 응답을 그대로 보여주는 패널 — API 스펙 검증용 */
+.resp{
+  margin-top:var(--s4); background:var(--board); color:#C9CED7;
+  border-radius:var(--radius); padding:var(--s3) var(--s4);
+  font-family:var(--font-num); font-size:var(--t-micro); line-height:1.7;
+  white-space:pre; overflow-x:auto;
+}
+.resp b{ color:var(--alert); font-weight:700; }
+.resp i{ color:var(--brass); font-style:normal; }
+
+/* ═══════════════════════════════════════════════════════════════
+   12. 빈 상태 · 오류
+   ═══════════════════════════════════════════════════════════════ */
+.blank{ text-align:center; padding:var(--s7) var(--s4); max-width:440px; margin:0 auto; }
+.blank__code{ font-family:var(--font-num); font-size:var(--t-micro); letter-spacing:.16em; color:var(--ink-mute); }
+.blank__title{ font-size:var(--t-title); font-weight:700; margin:var(--s3) 0 var(--s2); letter-spacing:-.02em; }
+.blank__body{ color:var(--ink-mute); font-size:var(--t-caption); margin-bottom:var(--s4); }
+.blank-set{ display:grid; gap:var(--s3); padding-bottom:var(--s7); }
+.blank-set > div{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); }
+
+/* ═══ 13. 반응형 ═══ */
+@media (max-width:900px){
+  .detail{ grid-template-columns:1fr; gap:var(--s4); }
+  :root{ --t-board:40px; --t-display:26px; }
+}
+@media (max-width:640px){
+  .header__inner{ flex-wrap:wrap; gap:var(--s2); }
+  .nav{ order:3; width:100%; overflow-x:auto; }
+  .board__inner{ padding:var(--s4); }
+  .grid-2{ grid-template-columns:1fr; }
+  :root{ --t-board:34px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ 시안 전용 상단 바 ═══ -->
+<div class="mock-bar">
+  <span class="mock-bar__label">AUCTIONPLAY / 화면 시안</span>
+  <nav class="mock-bar__nav" id="mockNav">
+    <button class="mock-bar__btn" data-screen="lobby" aria-current="true">1 로비</button>
+    <button class="mock-bar__btn" data-screen="product">2 상품 상세</button>
+    <button class="mock-bar__btn" data-screen="live">3 입찰</button>
+    <button class="mock-bar__btn" data-screen="result">4 낙찰 결과</button>
+    <button class="mock-bar__btn" data-screen="mypage">5 내 내역</button>
+    <button class="mock-bar__btn" data-screen="admin">6 상품 등록</button>
+    <button class="mock-bar__btn" data-screen="auth">7 로그인</button>
+    <button class="mock-bar__btn" data-screen="blank">8 빈 상태·오류</button>
+  </nav>
+</div>
+
+<!-- 공통 헤더 -->
+<header class="header">
+  <div class="header__inner">
+    <div class="logo">AUCTION<span>PLAY</span></div>
+    <nav class="nav">
+      <a href="#" aria-current="page">진행 중</a>
+      <a href="#">예정</a>
+      <a href="#">종료</a>
+      <a href="#">내 내역</a>
+    </nav>
+    <div class="purse">
+      <span class="purse__label">보유</span>
+      <span class="purse__value num">100,000</span>
+      <span class="purse__label">P</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════
+     1. 로비 — 경매 목록
+     ═══════════════════════════════════════════ -->
+<section class="screen is-active" id="s-lobby">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <div class="lot">LOTS / 진행 중</div>
+        <h1 class="sec-title">지금 값이 오르는 중</h1>
+        <p class="sec-sub">가상 포인트로만 참여합니다. 실제 결제는 없습니다.</p>
+      </div>
+      <div class="badge badge--live"><i class="dot"></i>LIVE 3</div>
+    </div>
+
+    <div class="grid">
+      <!-- 진행 중 -->
+      <article class="card">
+        <div class="card__thumb">
+          <span>IMAGE</span>
+          <div class="card__flag"><span class="badge badge--live"><i class="dot"></i>LIVE</span></div>
+        </div>
+        <div class="card__body">
+          <div class="card__meta">
+            <span class="lot">LOT 004</span>
+            <span class="rarity">RARE</span>
+          </div>
+          <h3 class="card__name">1969년 아폴로 11호 기념 우표</h3>
+          <div class="card__rows">
+            <div class="row"><span class="row__k">현재가</span><span class="row__v row__v--big">14,000</span></div>
+            <div class="row"><span class="row__k">입찰</span><span class="row__v">7회</span></div>
+            <div class="row"><span class="row__k">남은 시간</span><span class="row__v row__v--alert" data-live-clock>02:41</span></div>
+          </div>
+        </div>
+        <div class="timebar"><i class="timebar__fill" style="width:54%"></i></div>
+      </article>
+
+      <article class="card">
+        <div class="card__thumb">
+          <span>IMAGE</span>
+          <div class="card__flag"><span class="badge badge--live"><i class="dot"></i>LIVE</span></div>
+        </div>
+        <div class="card__body">
+          <div class="card__meta">
+            <span class="lot">LOT 005</span>
+            <span class="rarity">EPIC</span>
+          </div>
+          <h3 class="card__name">1988 서울올림픽 기념 주화</h3>
+          <div class="card__rows">
+            <div class="row"><span class="row__k">현재가</span><span class="row__v row__v--big">63,000</span></div>
+            <div class="row"><span class="row__k">입찰</span><span class="row__v">22회</span></div>
+            <div class="row"><span class="row__k">남은 시간</span><span class="row__v row__v--alert">00:38</span></div>
+          </div>
+        </div>
+        <div class="timebar"><i class="timebar__fill" style="width:12%"></i></div>
+      </article>
+
+      <article class="card">
+        <div class="card__thumb">
+          <span>IMAGE</span>
+          <div class="card__flag"><span class="badge badge--live"><i class="dot"></i>LIVE</span></div>
+        </div>
+        <div class="card__body">
+          <div class="card__meta">
+            <span class="lot">LOT 006</span>
+            <span class="rarity">COMMON</span>
+          </div>
+          <h3 class="card__name">1970년대 유리 문진</h3>
+          <div class="card__rows">
+            <div class="row"><span class="row__k">현재가</span><span class="row__v row__v--big">3,000</span></div>
+            <div class="row"><span class="row__k">입찰</span><span class="row__v">1회</span></div>
+            <div class="row"><span class="row__k">남은 시간</span><span class="row__v row__v--alert">04:52</span></div>
+          </div>
+        </div>
+        <div class="timebar"><i class="timebar__fill" style="width:88%"></i></div>
+      </article>
+
+      <!-- 예정 -->
+      <article class="card">
+        <div class="card__thumb">
+          <span>IMAGE</span>
+          <div class="card__flag"><span class="badge badge--sched">SCHEDULED</span></div>
+        </div>
+        <div class="card__body">
+          <div class="card__meta">
+            <span class="lot">LOT 007</span>
+            <span class="rarity">RARE</span>
+          </div>
+          <h3 class="card__name">1953년 초판 지도책</h3>
+          <div class="card__rows">
+            <div class="row"><span class="row__k">시작가</span><span class="row__v row__v--big">8,000</span></div>
+            <div class="row"><span class="row__k">입찰</span><span class="row__v">—</span></div>
+            <div class="row"><span class="row__k">시작까지</span><span class="row__v">12:00</span></div>
+          </div>
+        </div>
+        <div class="timebar"><i class="timebar__fill timebar__fill--calm" style="width:100%"></i></div>
+      </article>
+
+      <!-- 종료 -->
+      <article class="card">
+        <div class="card__thumb">
+          <span>IMAGE</span>
+          <div class="card__flag"><span class="badge badge--closed">CLOSED</span></div>
+        </div>
+        <div class="card__body">
+          <div class="card__meta">
+            <span class="lot">LOT 003</span>
+            <span class="rarity">EPIC</span>
+          </div>
+          <h3 class="card__name">1930년대 황동 탁상시계</h3>
+          <div class="card__rows">
+            <div class="row"><span class="row__k">낙찰가</span><span class="row__v row__v--big">41,000</span></div>
+            <div class="row"><span class="row__k">예상 가치</span><span class="row__v">52,000</span></div>
+            <div class="row"><span class="row__k">낙찰자 수익</span><span class="row__v gain">+11,000</span></div>
+          </div>
+        </div>
+        <div class="timebar"><i class="timebar__fill timebar__fill--calm" style="width:0%"></i></div>
+      </article>
+
+      <!-- 유찰 -->
+      <article class="card">
+        <div class="card__thumb">
+          <span>IMAGE</span>
+          <div class="card__flag"><span class="badge badge--cancel">CANCELLED</span></div>
+        </div>
+        <div class="card__body">
+          <div class="card__meta">
+            <span class="lot">LOT 002</span>
+            <span class="rarity">COMMON</span>
+          </div>
+          <h3 class="card__name">1990년대 필름 카메라 케이스</h3>
+          <div class="card__rows">
+            <div class="row"><span class="row__k">시작가</span><span class="row__v row__v--big">2,000</span></div>
+            <div class="row"><span class="row__k">입찰</span><span class="row__v">0회</span></div>
+            <div class="row"><span class="row__k">결과</span><span class="row__v">유찰</span></div>
+          </div>
+        </div>
+        <div class="timebar"><i class="timebar__fill timebar__fill--calm" style="width:0%"></i></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     2. 상품 상세 — 5초 체류 게이트
+     ═══════════════════════════════════════════ -->
+<section class="screen" id="s-product">
+  <div class="wrap">
+    <div class="detail">
+      <div class="detail__img"><span>IMAGE 1200×1200</span></div>
+
+      <div>
+        <div class="lot">LOT 004 · PRODUCT</div>
+        <h1 class="detail__title">1969년 아폴로 11호 기념 우표</h1>
+        <p class="detail__desc">
+          발행 당시 미사용 상태로 보관된 기념 우표. 인쇄면 색 바램이 거의 없고
+          가장자리 천공이 온전하다. 보관 앨범에서 분리한 흔적이 뒷면 좌측 하단에
+          약하게 남아 있다.
+        </p>
+
+        <div class="spec">
+          <div class="spec__row"><span class="spec__k">상태</span><span class="spec__v">GOOD</span></div>
+          <div class="spec__row"><span class="spec__k">희귀도</span><span class="spec__v">RARE</span></div>
+          <div class="spec__row"><span class="spec__k">예상 가치</span><span class="spec__v">85,000 P</span></div>
+          <div class="spec__row"><span class="spec__k">시작가</span><span class="spec__v">8,500 P</span></div>
+          <div class="spec__row"><span class="spec__k">최소 증가액</span><span class="spec__v">1,000 P</span></div>
+        </div>
+
+        <!-- ★ 이 서비스만의 규칙 -->
+        <div class="gate" id="gate">
+          <div class="gate__head">
+            <span class="gate__k">입찰 자격 확인 중</span>
+            <span class="gate__t num" id="gateTime">5.0s</span>
+          </div>
+          <div class="gate__bar"><i class="gate__fill" id="gateFill"></i></div>
+          <p class="gate__msg" id="gateMsg">
+            물건을 충분히 확인한 뒤 입찰할 수 있습니다. 이 화면에 5초 이상 머무르면 자격이 생깁니다.
+          </p>
+          <div style="margin-top:var(--s4)">
+            <button class="btn btn--brass btn--lg" id="gateBtn" disabled>입찰하러 가기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     3. 입찰 — 라이브 보드 ★ 시그니처
+     ═══════════════════════════════════════════ -->
+<section class="screen" id="s-live">
+  <div class="wrap" style="padding-top:var(--s5); padding-bottom:var(--s7)">
+
+    <div class="board">
+      <div class="board__strip"><i id="stripFill" style="width:54%"></i></div>
+      <div class="board__inner">
+        <div class="board__top">
+          <div>
+            <div class="board__lot">LOT 004 · RARE</div>
+            <h1 class="board__title">1969년 아폴로 11호 기념 우표</h1>
+          </div>
+          <div class="board__clock">
+            <div class="board__clock-k">남은 시간</div>
+            <div class="board__clock-v num" id="liveClock">02:41</div>
+          </div>
+        </div>
+
+        <div class="board__price">
+          <span class="board__price-v num" id="livePrice">14,000</span>
+          <span class="board__price-u">P</span>
+          <span class="board__price-delta num" id="liveDelta">▲ 1,000</span>
+        </div>
+
+        <div class="board__leader">
+          최고 입찰 <strong id="leaderName">bidder_41</strong>
+          <span id="leaderYou" hidden class="you">나</span>
+          <span style="margin-left:auto; color:#8A909B" class="num">7회 입찰</span>
+        </div>
+
+        <!-- 입찰 사다리: 최소 증가액 규칙을 계단으로 보여준다 -->
+        <div class="ladder" id="ladder">
+          <button class="ladder__btn" data-inc="1000" aria-pressed="true">
+            <div class="ladder__inc">+1,000</div>
+            <div class="ladder__val num">15,000</div>
+          </button>
+          <button class="ladder__btn" data-inc="3000">
+            <div class="ladder__inc">+3,000</div>
+            <div class="ladder__val num">17,000</div>
+          </button>
+          <button class="ladder__btn" data-inc="5000">
+            <div class="ladder__inc">+5,000</div>
+            <div class="ladder__val num">19,000</div>
+          </button>
+          <button class="ladder__btn" data-inc="10000">
+            <div class="ladder__inc">+10,000</div>
+            <div class="ladder__val num">24,000</div>
+          </button>
+        </div>
+
+        <div class="board__act">
+          <button class="btn btn--brass" style="flex:2" id="bidBtn">15,000 P 입찰</button>
+          <button class="btn btn--ghost" style="color:#B7BCC5; border-color:#32363F">직접 입력</button>
+        </div>
+        <p class="board__note">입찰 후 취소할 수 없습니다. 입찰액은 낙찰 전까지 보유 포인트에서 보류됩니다.</p>
+
+        <!-- 밀린 상태 -->
+        <div class="outbid" id="outbid" hidden>
+          <span class="num" style="font-weight:700">밀림</span>
+          다른 참가자가 더 높은 금액을 냈습니다. 현재 최고가는 16,000 P입니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- 입찰 이력 -->
+    <div style="margin-top:var(--s4)" class="bids">
+      <div class="bids__head">
+        <h3>입찰 이력</h3>
+        <span class="bids__count">7건</span>
+      </div>
+      <div class="bid bid--top">
+        <span class="bid__rank num">01</span>
+        <span class="bid__who">bidder_41</span>
+        <span><span class="bid__amt">14,000</span> <span class="bid__time">00:12 전</span></span>
+      </div>
+      <div class="bid">
+        <span class="bid__rank num">02</span>
+        <span class="bid__who">나 <span class="you">나</span></span>
+        <span><span class="bid__amt">13,000</span> <span class="bid__time">00:31 전</span></span>
+      </div>
+      <div class="bid">
+        <span class="bid__rank num">03</span>
+        <span class="bid__who">bidder_08</span>
+        <span><span class="bid__amt">12,000</span> <span class="bid__time">00:58 전</span></span>
+      </div>
+      <div class="bid">
+        <span class="bid__rank num">04</span>
+        <span class="bid__who">bidder_41</span>
+        <span><span class="bid__amt">11,000</span> <span class="bid__time">01:20 전</span></span>
+      </div>
+      <div class="bid">
+        <span class="bid__rank num">05</span>
+        <span class="bid__who">bidder_15</span>
+        <span><span class="bid__amt">10,000</span> <span class="bid__time">01:44 전</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     4. 낙찰 결과
+     ═══════════════════════════════════════════ -->
+<section class="screen" id="s-result">
+  <div class="wrap">
+    <div class="result">
+      <div class="result__board">
+        <div class="result__hammer">HAMMER · 낙찰</div>
+        <h1 class="result__title">1969년 아폴로 11호 기념 우표</h1>
+        <div>
+          <span class="result__price num">41,000</span><span class="result__unit">P</span>
+        </div>
+        <p style="color:#8A909B; font-size:13px; margin-top:var(--s3)">
+          LOT 004 · 총 7회 입찰 · 낙찰자 나
+        </p>
+      </div>
+
+      <div class="ledger">
+        <div class="ledger__row">
+          <span>예상 가치</span>
+          <span class="ledger__v">52,000 P</span>
+        </div>
+        <div class="ledger__row">
+          <span>낙찰가</span>
+          <span class="ledger__v">− 41,000 P</span>
+        </div>
+        <div class="ledger__row ledger__row--sum">
+          <span style="font-weight:600">평가 손익</span>
+          <span class="ledger__v gain" style="font-size:18px">+ 11,000 P</span>
+        </div>
+        <div class="ledger__row">
+          <span>정산 후 보유 포인트</span>
+          <span class="ledger__v">59,000 P</span>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:var(--s2); margin-top:var(--s4)">
+        <button class="btn btn--ghost" style="flex:1">내 낙찰 내역</button>
+        <button class="btn btn--brass" style="flex:1">다음 경매 보기</button>
+      </div>
+
+      <!-- 유찰 케이스 -->
+      <div style="margin-top:var(--s6)">
+        <div class="lot" style="margin-bottom:var(--s2)">유찰된 경우</div>
+        <div class="ledger">
+          <div class="ledger__row">
+            <span>LOT 002 · 1990년대 필름 카메라 케이스</span>
+            <span class="ledger__v" style="color:var(--ink-mute)">유찰</span>
+          </div>
+          <div class="ledger__row">
+            <span style="color:var(--ink-mute); font-size:12px">입찰자가 없어 경매가 취소되었습니다. 보류된 포인트는 없습니다.</span>
+            <span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     5. 내 내역 (입찰 / 포인트)
+     ═══════════════════════════════════════════ -->
+<section class="screen" id="s-mypage">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <div class="lot">MY ACTIVITY</div>
+        <h1 class="sec-title">내 내역</h1>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab" aria-selected="true">입찰 15</button>
+      <button class="tab" aria-selected="false">낙찰 3</button>
+      <button class="tab" aria-selected="false">포인트</button>
+    </div>
+
+    <table class="table" style="margin-bottom:var(--s6)">
+      <thead>
+        <tr>
+          <th style="width:78px">LOT</th>
+          <th>상품</th>
+          <th class="n">내 입찰</th>
+          <th class="n">현재가</th>
+          <th style="width:96px">상태</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="num" style="font-size:11px; color:var(--ink-mute)">004</td>
+          <td>1969년 아폴로 11호 기념 우표</td>
+          <td class="n">13,000</td>
+          <td class="n">14,000</td>
+          <td><span class="badge badge--live"><i class="dot"></i>밀림</span></td>
+        </tr>
+        <tr>
+          <td class="num" style="font-size:11px; color:var(--ink-mute)">005</td>
+          <td>1988 서울올림픽 기념 주화</td>
+          <td class="n">63,000</td>
+          <td class="n">63,000</td>
+          <td><span class="badge badge--live"><i class="dot"></i>최고</span></td>
+        </tr>
+        <tr>
+          <td class="num" style="font-size:11px; color:var(--ink-mute)">003</td>
+          <td>1930년대 황동 탁상시계</td>
+          <td class="n">41,000</td>
+          <td class="n">41,000</td>
+          <td><span class="badge badge--closed">낙찰</span></td>
+        </tr>
+        <tr>
+          <td class="num" style="font-size:11px; color:var(--ink-mute)">001</td>
+          <td>1960년대 목재 필통</td>
+          <td class="n">5,000</td>
+          <td class="n">9,000</td>
+          <td><span class="badge badge--closed">패찰</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="lot" style="margin-bottom:var(--s2)">포인트 원장</div>
+    <table class="table" style="margin-bottom:var(--s7)">
+      <thead>
+        <tr>
+          <th style="width:120px">유형</th>
+          <th>내용</th>
+          <th class="n">증감</th>
+          <th class="n">잔액</th>
+          <th style="width:120px">시각</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tx tx--out">BID_HOLD</span></td>
+          <td>LOT 004 입찰 보류</td>
+          <td class="n">− 13,000</td>
+          <td class="n">46,000</td>
+          <td class="num" style="font-size:11px; color:var(--ink-mute)">08-20 00:57</td>
+        </tr>
+        <tr>
+          <td><span class="tx tx--in">REFUND</span></td>
+          <td>LOT 001 패찰 환급</td>
+          <td class="n gain">+ 5,000</td>
+          <td class="n">59,000</td>
+          <td class="num" style="font-size:11px; color:var(--ink-mute)">08-20 00:41</td>
+        </tr>
+        <tr>
+          <td><span class="tx tx--out">PURCHASE</span></td>
+          <td>LOT 003 낙찰 정산</td>
+          <td class="n">− 41,000</td>
+          <td class="n">54,000</td>
+          <td class="num" style="font-size:11px; color:var(--ink-mute)">08-20 00:33</td>
+        </tr>
+        <tr>
+          <td><span class="tx tx--in">CHARGE</span></td>
+          <td>가입 지급</td>
+          <td class="n gain">+ 100,000</td>
+          <td class="n">100,000</td>
+          <td class="num" style="font-size:11px; color:var(--ink-mute)">08-19 22:10</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     6. 상품 등록 (관리자) — P-01, 검증 에러 포함
+     ═══════════════════════════════════════════ -->
+<section class="screen" id="s-admin">
+  <div class="wrap">
+    <div class="form">
+      <div class="lot">ADMIN · POST /api/products</div>
+      <h1 class="sec-title" style="margin:var(--s2) 0 var(--s4)">상품 등록</h1>
+
+      <div class="form__card">
+        <div class="field">
+          <label class="field__label" for="a-name">상품명<span class="field__req">*</span></label>
+          <input class="field__input" id="a-name" type="text" value="1969년 아폴로 11호 기념 우표">
+          <p class="field__hint">최대 100자</p>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="a-desc">설명</label>
+          <input class="field__input" id="a-desc" type="text" placeholder="상태·보관 이력 등">
+          <p class="field__hint">최대 1,000자. 비워도 등록됩니다</p>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="a-img">이미지 주소</label>
+          <input class="field__input" id="a-img" type="text" placeholder="https://">
+          <p class="field__hint">최대 500자</p>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label class="field__label" for="a-cond">상태<span class="field__req">*</span></label>
+            <input class="field__input" id="a-cond" type="text" value="GOOD">
+          </div>
+          <div class="field">
+            <label class="field__label" for="a-rare">희귀도<span class="field__req">*</span></label>
+            <input class="field__input is-error" id="a-rare" type="text" value="">
+            <p class="field__err">희귀도는 필수입니다.</p>
+          </div>
+        </div>
+
+        <div class="field field--num">
+          <label class="field__label" for="a-val">예상 가치<span class="field__req">*</span></label>
+          <input class="field__input is-error" id="a-val" type="text" value="0">
+          <p class="field__err">예상 가치는 1 이상이어야 합니다.</p>
+        </div>
+
+        <button class="btn btn--lg">상품 등록</button>
+
+        <!-- 서버 응답 그대로 -->
+        <div class="resp">HTTP/1.1 <b>400</b>
+{
+  "code": <b>"INVALID_INPUT"</b>,
+  "message": "입력값이 올바르지 않습니다.",
+  "errors": [
+    { "field": <i>"rarity"</i>,         "message": "희귀도는 필수입니다." },
+    { "field": <i>"estimatedValue"</i>, "message": "예상 가치는 1 이상이어야 합니다." }
+  ],
+  "timestamp": "2026-08-20T00:56:32.894"
+}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     7. 로그인 / 가입
+     ═══════════════════════════════════════════ -->
+<section class="screen" id="s-auth">
+  <div class="wrap">
+    <div class="form">
+      <div class="lot">ACCOUNT</div>
+      <h1 class="sec-title" style="margin:var(--s2) 0 var(--s2)">시작하기</h1>
+      <p class="sec-sub" style="margin-bottom:var(--s4)">
+        가입하면 100,000 P가 지급됩니다. 실제 결제는 사용하지 않습니다.
+      </p>
+
+      <div class="form__card">
+        <div class="field">
+          <label class="field__label" for="u-email">이메일</label>
+          <input class="field__input" id="u-email" type="email" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label class="field__label" for="u-pw">비밀번호</label>
+          <input class="field__input" id="u-pw" type="password">
+          <p class="field__hint">8자 이상, 영문과 숫자를 포함합니다</p>
+        </div>
+        <div class="field">
+          <label class="field__label" for="u-nick">닉네임</label>
+          <input class="field__input" id="u-nick" type="text">
+          <p class="field__hint">2~20자. 입찰 이력에 표시됩니다</p>
+        </div>
+
+        <button class="btn btn--brass btn--lg">가입하고 100,000 P 받기</button>
+        <p style="text-align:center; font-size:13px; color:var(--ink-mute); margin-top:var(--s3)">
+          이미 계정이 있으신가요? <a href="#" style="border-bottom:1px solid var(--line)">로그인</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     8. 빈 상태 · 오류
+     ═══════════════════════════════════════════ -->
+<section class="screen" id="s-blank">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <div class="lot">STATES</div>
+        <h1 class="sec-title">빈 상태와 오류</h1>
+        <p class="sec-sub">막다른 화면에서도 다음 행동을 제시합니다.</p>
+      </div>
+    </div>
+
+    <div class="blank-set">
+      <div>
+        <div class="blank">
+          <div class="blank__code">NO ACTIVE LOTS</div>
+          <h2 class="blank__title">지금 진행 중인 경매가 없습니다</h2>
+          <p class="blank__body">다음 경매는 12분 뒤에 시작합니다. 예정 목록에서 물건을 미리 살펴보세요.</p>
+          <button class="btn btn--ghost">예정 경매 보기</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="blank">
+          <div class="blank__code">PRODUCT_NOT_FOUND · 404</div>
+          <h2 class="blank__title">상품을 찾을 수 없습니다</h2>
+          <p class="blank__body">주소가 바뀌었거나 삭제된 상품입니다. 로비에서 다른 물건을 찾아보세요.</p>
+          <button class="btn btn--ghost">로비로</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="blank">
+          <div class="blank__code">INSUFFICIENT_POINT · 400</div>
+          <h2 class="blank__title">포인트가 부족합니다</h2>
+          <p class="blank__body">보유 46,000 P로는 63,000 P를 낼 수 없습니다. 진행 중인 다른 입찰이 끝나면 보류된 포인트가 돌아옵니다.</p>
+          <button class="btn btn--ghost">내 입찰 확인</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="blank">
+          <div class="blank__code">PRODUCT_NOT_VIEWED · 403</div>
+          <h2 class="blank__title">아직 입찰할 수 없습니다</h2>
+          <p class="blank__body">상품 상세를 5초 이상 확인해야 입찰 자격이 생깁니다. 물건부터 살펴보세요.</p>
+          <button class="btn btn--brass">상품 상세로</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="blank">
+          <div class="blank__code">AUCTION_CLOSED · 409</div>
+          <h2 class="blank__title">이미 종료된 경매입니다</h2>
+          <p class="blank__body">방금 마감되었습니다. 낙찰 결과를 확인할 수 있습니다.</p>
+          <button class="btn btn--ghost">결과 보기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ─── 화면 전환 ─── */
+const nav = document.getElementById('mockNav');
+nav.addEventListener('click', e => {
+  const btn = e.target.closest('[data-screen]');
+  if (!btn) return;
+  nav.querySelectorAll('.mock-bar__btn').forEach(b => b.removeAttribute('aria-current'));
+  btn.setAttribute('aria-current', 'true');
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('is-active'));
+  document.getElementById('s-' + btn.dataset.screen).classList.add('is-active');
+  window.scrollTo(0, 0);
+  if (btn.dataset.screen === 'product') resetGate();
+});
+
+/* ─── 5초 체류 게이트 ─── */
+let gateTimer = null;
+function resetGate(){
+  const gate = document.getElementById('gate');
+  const fill = document.getElementById('gateFill');
+  const time = document.getElementById('gateTime');
+  const msg  = document.getElementById('gateMsg');
+  const btn  = document.getElementById('gateBtn');
+
+  clearInterval(gateTimer);
+  gate.classList.remove('is-done');
+  fill.style.width = '0%';
+  btn.disabled = true;
+  btn.textContent = '입찰하러 가기';
+  msg.textContent = '물건을 충분히 확인한 뒤 입찰할 수 있습니다. 이 화면에 5초 이상 머무르면 자격이 생깁니다.';
+
+  let left = 5.0;
+  time.textContent = left.toFixed(1) + 's';
+
+  gateTimer = setInterval(() => {
+    left -= 0.1;
+    if (left <= 0){
+      clearInterval(gateTimer);
+      time.textContent = '완료';
+      fill.style.width = '100%';
+      gate.classList.add('is-done');
+      btn.disabled = false;
+      document.querySelector('.gate__k').textContent = '입찰 자격 확보';
+      msg.textContent = '이 상품에 입찰할 수 있습니다.';
+      return;
+    }
+    time.textContent = left.toFixed(1) + 's';
+    fill.style.width = ((5 - left) / 5 * 100) + '%';
+  }, 100);
+}
+document.getElementById('gateBtn').addEventListener('click', () => {
+  document.querySelector('[data-screen="live"]').click();
+});
+
+/* ─── 입찰 사다리 ─── */
+const CURRENT = 14000;
+document.getElementById('ladder').addEventListener('click', e => {
+  const btn = e.target.closest('.ladder__btn');
+  if (!btn) return;
+  document.querySelectorAll('.ladder__btn').forEach(b => b.setAttribute('aria-pressed','false'));
+  btn.setAttribute('aria-pressed','true');
+  const next = CURRENT + Number(btn.dataset.inc);
+  document.getElementById('bidBtn').textContent = next.toLocaleString() + ' P 입찰';
+});
+
+/* ─── 입찰 시뮬레이션 ─── */
+document.getElementById('bidBtn').addEventListener('click', function(){
+  const pressed = document.querySelector('.ladder__btn[aria-pressed="true"]');
+  const next = CURRENT + Number(pressed.dataset.inc);
+
+  document.getElementById('livePrice').textContent = next.toLocaleString();
+  document.getElementById('liveDelta').textContent = '▲ ' + Number(pressed.dataset.inc).toLocaleString();
+  document.getElementById('leaderName').textContent = '나';
+  document.getElementById('leaderYou').hidden = false;
+  document.getElementById('outbid').hidden = true;
+
+  // 2초 뒤 다른 참가자가 밀어냄
+  setTimeout(() => {
+    const over = next + 1000;
+    document.getElementById('livePrice').textContent = over.toLocaleString();
+    document.getElementById('leaderName').textContent = 'bidder_41';
+    document.getElementById('leaderYou').hidden = true;
+    const ob = document.getElementById('outbid');
+    ob.hidden = false;
+    ob.innerHTML = '<span class="num" style="font-weight:700">밀림</span> 다른 참가자가 더 높은 금액을 냈습니다. 현재 최고가는 ' + over.toLocaleString() + ' P입니다.';
+  }, 2000);
+});
+
+/* ─── 카운트다운 ─── */
+let sec = 161;
+setInterval(() => {
+  if (sec <= 0) return;
+  sec--;
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  const t = m + ':' + s;
+  document.getElementById('liveClock').textContent = t;
+  document.querySelectorAll('[data-live-clock]').forEach(el => el.textContent = t);
+  document.getElementById('stripFill').style.width = (sec / 300 * 100) + '%';
+}, 1000);
+</script>
+
+</body>
+</html>
