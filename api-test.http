@@ -314,3 +314,45 @@ Content-Type: application/json
   "startAt": "2026-08-24T10:00:00",
   "endAt": "2026-08-24T10:05:00"
 }
+
+### 1. 회원가입
+POST http://localhost:8080/api/auth/signup
+Content-Type: application/json
+
+{
+  "email": "test@test.com",
+  "password": "test1234",
+  "nickname": "테스터"
+}
+
+### 2. 로그인
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@test.com",
+  "password": "test1234"
+}
+
+### 3. 토큰 없이 상품 등록 시도 → 401이어야 정상
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "name": "테스트 상품",
+  "itemCondition": "GOOD",
+  "rarity": "RARE",
+  "estimatedValue": 50000
+}
+
+### 4. 토큰 넣고 상품 등록 → 201이어야 정상
+POST http://localhost:8080/api/products
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMDgiLCJpYXQiOjE3ODgwMDQ4NjUsImV4cCI6MTc4ODA5MTI2NX0.0s5_PokIX7P9uKnpSDuqygmgmLaDDWyRTYGKsJot-bbHJYs5Kj7lrCx-uQVsJ2t6Teq1BXeBnsQK-JeeKCubGA
+
+{
+  "name": "테스트 상품",
+  "itemCondition": "GOOD",
+  "rarity": "RARE",
+  "estimatedValue": 50000
+}

@@ -18,12 +18,33 @@ public class UserService {
     private static final long INITIAL_POINT = 100000L;
 
     private final UserRepository userRepository;
+    // 비밀번호 추가
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Transactional
     public UserDetailResponse create(UserCreateRequest request) {
         User user = User.builder()
                 .email(request.getEmail())
                 .password("TEMP")          // 인증 단계에서 BCrypt 해시로 교체
+                .nickname(request.getNickname())
+                .point(INITIAL_POINT)
+                .build();
+
+        return toDetailResponse(userRepository.save(user));
+    }
+    // 로그인 추가
+    @Transactional
+    public UserDetailResponse signup(com.auction.auction_play.dto.request.SignupRequest request) {
+
+        // 1. 이메일 중복 검사
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
+        }
+
+        // 2. 비밀번호는 BCrypt로 해싱해서 저장 (평문 저장 금지)
+        User user = User.builder()
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
                 .nickname(request.getNickname())
                 .point(INITIAL_POINT)
                 .build();
