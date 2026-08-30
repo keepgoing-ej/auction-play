@@ -12,6 +12,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -25,10 +26,11 @@ public class BidController {
     @PostMapping
     public ResponseEntity<BidCreateResponse> bid(
             @PathVariable Long auctionId,
+            @AuthenticationPrincipal Long userId, // 토큰에서 꺼낸 값
             @Valid @RequestBody BidCreateRequest request) {
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(bidService.bid(auctionId, request));
+                .body(bidService.bid(auctionId, userId, request));
     }
 
     // A-05. 입찰 이력

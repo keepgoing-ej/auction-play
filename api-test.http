@@ -356,3 +356,40 @@ Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMDgiLCJpYXQiOjE3ODgwMDQ4N
   "rarity": "RARE",
   "estimatedValue": 50000
 }
+
+### 로그인 → 토큰 받기
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@test.com",
+  "password": "test1234"
+}
+
+### 조회인정 — 토큰만으로 (본문 없음)
+POST http://localhost:8080/api/products/65/view
+Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMDgiLCJpYXQiOjE3ODgwNzU3MjUsImV4cCI6MTc4ODE2MjEyNX0.xrWHP_h68ULR1JZBrhSSWnDdyOYuecrfn2Z7I0BebKB3kyFagT2pdM7_uDA_hCo0gZ4CFjqlamZNx2shPUY4Aw
+
+### 진행중인 경매 조회
+GET http://localhost:8080/api/auctions?status=RUNNING
+
+### 경매 생성 — 시작시각 과거로 (바로 RUNNING 되게)
+POST http://localhost:8080/api/auctions
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMDgiLCJpYXQiOjE3ODgwNzU3MjUsImV4cCI6MTc4ODE2MjEyNX0.xrWHP_h68ULR1JZBrhSSWnDdyOYuecrfn2Z7I0BebKB3kyFagT2pdM7_uDA_hCo0gZ4CFjqlamZNx2shPUY4Aw
+
+{
+  "productId": 65,
+  "startPrice": 5000,
+  "startAt": "2026-08-30T00:00:00",
+  "endAt": "2026-08-31T23:59:59"
+}
+
+### 입찰 — 토큰만으로 (본문에 userId 없음)
+POST http://localhost:8080/api/auctions/62/bids
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMDgiLCJpYXQiOjE3ODgwNzU3MjUsImV4cCI6MTc4ODE2MjEyNX0.xrWHP_h68ULR1JZBrhSSWnDdyOYuecrfn2Z7I0BebKB3kyFagT2pdM7_uDA_hCo0gZ4CFjqlamZNx2shPUY4Aw
+
+{
+  "amount": 6000
+}

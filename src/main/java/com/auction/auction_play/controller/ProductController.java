@@ -2,7 +2,6 @@ package com.auction.auction_play.controller;
 
 import com.auction.auction_play.dto.request.ProductCreateRequest;
 import com.auction.auction_play.dto.request.ProductUpdateRequest;
-import com.auction.auction_play.dto.request.ProductViewRequest;
 import com.auction.auction_play.dto.response.PageResponse;
 import com.auction.auction_play.dto.response.ProductDetailResponse;
 import com.auction.auction_play.dto.response.ProductSummaryResponse;
@@ -16,14 +15,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import static org.springframework.data.jpa.domain.AbstractPersistable_.id;
 
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
-
 public class ProductController {
 
     private final ProductService productService;
@@ -45,7 +42,6 @@ public class ProductController {
             Pageable pageable) {
         return ResponseEntity.ok(productService.getList(pageable));
     }
-
 
     // 상세
     @GetMapping("/{id}")
@@ -73,8 +69,8 @@ public class ProductController {
     @PostMapping("/{id}/view")
     public ResponseEntity<ProductViewResponse> recordView(
             @PathVariable Long id,
-            @Valid @RequestBody ProductViewRequest request) {
+            @AuthenticationPrincipal Long userId) {
 
-        return ResponseEntity.ok(productViewService.recordView(id, request.getUserId()));
+        return ResponseEntity.ok(productViewService.recordView(id, userId));
     }
 }
