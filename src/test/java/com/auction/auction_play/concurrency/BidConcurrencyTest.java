@@ -27,18 +27,17 @@ class BidConcurrencyTest {
     @Autowired ProductViewRepository productViewRepository;
     @Autowired BidRepository bidRepository;
     @Autowired PointTransactionRepository pointTransactionRepository;
+    @Autowired AuctionResultRepository auctionResultRepository;
 
     private static final int THREAD_COUNT = 10;
 
     Long auctionId;
     List<Long> userIds = new ArrayList<>();
-    @Autowired
-    private AuctionResultRepository auctionResultRepository;
 
     @BeforeEach
     void setUp() {
-        // 기존 데이터 정리
-        auctionResultRepository.deleteAll();   // ← 추가 자식 → 부모 순서로 삭제 (FK 제약)
+        // 기존 데이터 정리 — 자식 → 부모 순서로 삭제 (FK 제약)
+        auctionResultRepository.deleteAll();
         bidRepository.deleteAll();
         pointTransactionRepository.deleteAll();
         productViewRepository.deleteAll();
@@ -83,33 +82,33 @@ class BidConcurrencyTest {
     }
 
     @Test
-    @DisplayName("10명이 동시에 같은 금액으로 입찰하면?")
+    @DisplayName("10명이 동시에 서로 다른 금액으로 입찰하면?")
     void 동시_입찰_문제_재현() throws InterruptedException {
 
-        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT); // 10으로 시작
+        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
         CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
 
-        AtomicInteger successCount = new AtomicInteger(); // 여러일꾼 같이 세는 계수기
+        AtomicInteger successCount = new AtomicInteger();
         AtomicInteger failCount = new AtomicInteger();
 
         for (int i = 0; i < THREAD_COUNT; i++) {
             Long userId = userIds.get(i);
-            final int index = i; // 인덱스 추가
+            final int index = i;
 
-            executor.submit(() -> {   // ← 여기. 10번 반복해서 일 던짐
-                try { // 인덱스 추가
-                    BidCreateRequest request = createRequest(userId, 11000L + (index * 1000L));
-                    bidService.bid(auctionId, request);
+            executor.submit(() -> {
+                try {
+                    BidCreateRequest request = createRequest(11000L + (index * 1000L));
+                    bidService.bid(auctionId, userId, request);
                     successCount.incrementAndGet();
                 } catch (Exception e) {
                     failCount.incrementAndGet();
                 } finally {
-                    latch.countDown(); // ← 일 하나 끝날 때마다 10→9→8...
+                    latch.countDown();
                 }
             });
         }
 
-        latch.await();  // ← 0 될 때까지 여기서 멈춰 있음
+        latch.await();
         executor.shutdown();
 
         // ===== 결과 확인 =====
@@ -117,28 +116,24 @@ class BidConcurrencyTest {
         long bidCount = bidRepository.count();
         long totalPoint = userRepository.findAll().stream()
                 .mapToLong(User::getPoint).sum();
-        System.out.println("포인트 총합 : " + totalPoint + " (기대: 10000000 - 최고입찰액)");  // 추가
+
+        System.out.println("포인트 총합 : " + totalPoint + " (기대: 10000000 - 최종 현재가)");
         System.out.println("성공한 입찰 : " + successCount.get() + "건");
         System.out.println("실패한 입찰 : " + failCount.get() + "건");
         System.out.println("저장된 입찰 : " + bidCount + "건");
         System.out.println("최종 현재가 : " + auction.getCurrentPrice());
         System.out.println("========================================");
-        System.out.println("기대값 → 성공 1건 / 실패 9건 / 현재가 11,000");
+        System.out.println("판정 → 포인트 총합 == 10000000 - 최종 현재가 이면 정합성 OK");
         System.out.println("========================================");
     }
 
-    // DTO에 Setter가 없으므로 리플렉션으로 값 주입 (테스트 전용)
-    private BidCreateRequest createRequest(Long userId, Long amount) {
+    // amount만 리플렉션으로 주입 (userId는 bid 인자로 직접 전달)
+    private BidCreateRequest createRequest(Long amount) {
         try {
             BidCreateRequest request = new BidCreateRequest();
-            Field userIdField = BidCreateRequest.class.getDeclaredField("userId");
-            userIdField.setAccessible(true);
-            userIdField.set(request, userId);
-
             Field amountField = BidCreateRequest.class.getDeclaredField("amount");
             amountField.setAccessible(true);
             amountField.set(request, amount);
-
             return request;
         } catch (Exception e) {
             throw new RuntimeException(e);

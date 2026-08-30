@@ -1,32 +1,20 @@
 package com.auction.auction_play.service;
 
 import com.auction.auction_play.domain.*;
-import com.auction.auction_play.dto.request.AuctionCreateRequest;
 import com.auction.auction_play.dto.request.BidCreateRequest;
-import com.auction.auction_play.dto.response.AuctionDetailResponse;
-import com.auction.auction_play.dto.response.AuctionSummaryResponse;
-import com.auction.auction_play.dto.response.PageResponse;
-import com.auction.auction_play.dto.response.ProductSummaryResponse;
 import com.auction.auction_play.exception.BusinessException;
 import com.auction.auction_play.exception.ErrorCode;
 import com.auction.auction_play.repository.*;
-import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -88,17 +76,13 @@ class BidServiceTest {
                 .build());
     }
 
-    private BidCreateRequest 입찰요청(Long userId, Long amount) {
+    // amount만 리플렉션으로 주입 (userId는 이제 토큰에서 오므로 bid 인자로 직접 전달)
+    private BidCreateRequest 입찰요청(Long amount) {
         try {
             BidCreateRequest request = new BidCreateRequest();
-            Field f1 = BidCreateRequest.class.getDeclaredField("userId");
-            f1.setAccessible(true);
-            f1.set(request, userId);
-
-            Field f2 = BidCreateRequest.class.getDeclaredField("amount");
-            f2.setAccessible(true);
-            f2.set(request, amount);
-
+            Field f = BidCreateRequest.class.getDeclaredField("amount");
+            f.setAccessible(true);
+            f.set(request, amount);
             return request;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -118,9 +102,9 @@ class BidServiceTest {
         Auction auction = 진행중인_경매를_만든다(10000L);
 
         // when
-        bidService.bid(auction.getId(), 입찰요청(user.getId(), 11000L));
+        bidService.bid(auction.getId(), user.getId(), 입찰요청(11000L));
 
-        // then 수정
+        // then
         User 갱신된_사용자 = userRepository.findById(user.getId()).orElseThrow();
         Auction 갱신된_경매 = auctionRepository.findById(auction.getId()).orElseThrow();
 
@@ -129,13 +113,12 @@ class BidServiceTest {
         assertThat(bidRepository.countByAuctionId(auction.getId())).isEqualTo(1);
     }
 
-
     @Test
     @DisplayName("존재하지 않는 경매면 실패한다")
     void 없는_경매() {
         User user = 사용자를_만든다(100000L);
 
-        assertThatThrownBy(() -> bidService.bid(999999L, 입찰요청(user.getId(), 11000L)))
+        assertThatThrownBy(() -> bidService.bid(999999L, user.getId(), 입찰요청(11000L)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.AUCTION_NOT_FOUND);
@@ -148,7 +131,7 @@ class BidServiceTest {
         Auction auction = 진행중인_경매를_만든다(10000L);
         // 상품을_조회한다(user) 호출 안 함
 
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(user.getId(), 11000L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), user.getId(), 입찰요청(11000L)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.PRODUCT_NOT_VIEWED);
@@ -161,7 +144,7 @@ class BidServiceTest {
         상품을_조회한다(user);
         Auction auction = 진행중인_경매를_만든다(10000L);
 
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(user.getId(), 11000L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), user.getId(), 입찰요청(11000L)))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INSUFFICIENT_POINT);
@@ -172,7 +155,7 @@ class BidServiceTest {
     void 없는_사용자() {
         Auction auction = 진행중인_경매를_만든다(10000L);
 
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(999999L, 11000L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), 999999L, 입찰요청(11000L)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
     }
@@ -184,7 +167,7 @@ class BidServiceTest {
         상품을_조회한다(user);
         Auction auction = 진행중인_경매를_만든다(10000L);
 
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(user.getId(), 9000L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), user.getId(), 입찰요청(9000L)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_BID_AMOUNT);
     }
@@ -196,7 +179,7 @@ class BidServiceTest {
         상품을_조회한다(user);
         Auction auction = 진행중인_경매를_만든다(10000L);
 
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(user.getId(), 10500L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), user.getId(), 입찰요청(10500L)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_BID_AMOUNT);
     }
@@ -209,7 +192,7 @@ class BidServiceTest {
         Auction auction = 진행중인_경매를_만든다(10000L);
         auction.cancel();
 
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(user.getId(), 11000L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), user.getId(), 입찰요청(11000L)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUCTION_CANCELLED);
     }
@@ -229,7 +212,7 @@ class BidServiceTest {
                 .status(AuctionStatus.SCHEDULED)
                 .build());
 
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(user.getId(), 11000L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), user.getId(), 입찰요청(11000L)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUCTION_NOT_STARTED);
     }
@@ -249,11 +232,10 @@ class BidServiceTest {
                 .status(AuctionStatus.RUNNING)
                 .build());
 
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(user.getId(), 11000L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), user.getId(), 입찰요청(11000L)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUCTION_CLOSED);
     }
-
 
     @Test
     @DisplayName("밀리면 이전 최고 입찰자에게 환급된다")
@@ -266,8 +248,8 @@ class BidServiceTest {
         Auction auction = 진행중인_경매를_만든다(10000L);
 
         // when
-        bidService.bid(auction.getId(), 입찰요청(a.getId(), 11000L));   // A 입찰
-        bidService.bid(auction.getId(), 입찰요청(b.getId(), 12000L));   // B가 밀어냄
+        bidService.bid(auction.getId(), a.getId(), 입찰요청(11000L));   // A 입찰
+        bidService.bid(auction.getId(), b.getId(), 입찰요청(12000L));   // B가 밀어냄
 
         // then
         User 갱신된A = userRepository.findById(a.getId()).orElseThrow();
@@ -286,7 +268,7 @@ class BidServiceTest {
         Auction auction = 진행중인_경매를_만든다(10000L);
 
         // when — 포인트보다 큰 금액으로 실패
-        assertThatThrownBy(() -> bidService.bid(auction.getId(), 입찰요청(user.getId(), 500000L)))
+        assertThatThrownBy(() -> bidService.bid(auction.getId(), user.getId(), 입찰요청(500000L)))
                 .isInstanceOf(BusinessException.class);
 
         // then
@@ -309,9 +291,9 @@ class BidServiceTest {
         Auction auction = 진행중인_경매를_만든다(10000L);
 
         // when
-        bidService.bid(auction.getId(), 입찰요청(a.getId(), 11000L));
-        bidService.bid(auction.getId(), 입찰요청(b.getId(), 12000L));
-        bidService.bid(auction.getId(), 입찰요청(a.getId(), 15000L));
+        bidService.bid(auction.getId(), a.getId(), 입찰요청(11000L));
+        bidService.bid(auction.getId(), b.getId(), 입찰요청(12000L));
+        bidService.bid(auction.getId(), a.getId(), 입찰요청(15000L));
 
         // then — 보유 포인트 합 + 보류 금액 = 초기 총액
         long 보유합 = userRepository.findById(a.getId()).orElseThrow().getPoint()
@@ -319,133 +301,5 @@ class BidServiceTest {
         long 보류 = auctionRepository.findById(auction.getId()).orElseThrow().getCurrentPrice();
 
         assertThat(보유합 + 보류).isEqualTo(200000L);
-    }
-
-    @Service
-    @RequiredArgsConstructor
-    @Transactional(readOnly = true)
-    public static class AuctionService {
-
-        private static final long MIN_BID_INCREMENT = 1000L;
-
-        private final AuctionRepository auctionRepository;
-        private final ProductRepository productRepository;
-        private final BidRepository bidRepository;
-
-        // A-01. 경매 등록
-        @Transactional
-        public AuctionDetailResponse create(AuctionCreateRequest request) {
-
-            // 1) 상품이 실제로 있는지
-            Product product = productRepository.findById(request.getProductId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-
-            // 2) 시간 교차 검증 — 어노테이션으로 못 하는 부분
-            if (!request.getEndAt().isAfter(request.getStartAt())) {
-                throw new BusinessException(ErrorCode.INVALID_AUCTION_TIME);
-            }
-
-            // 3) 파생값은 서버가 정한다
-            Auction auction = Auction.builder()
-                    .product(product)
-                    .startPrice(request.getStartPrice())
-                    .currentPrice(request.getStartPrice())   // 현재가 = 시작가
-                    .startAt(request.getStartAt())
-                    .endAt(request.getEndAt())
-                    .status(AuctionStatus.SCHEDULED)         // 상태는 항상 SCHEDULED로 시작
-                    .build();
-
-            return toDetailResponse(auctionRepository.save(auction), 0L);    }
-
-        public PageResponse<AuctionSummaryResponse> getList(AuctionStatus status, Pageable pageable) {
-
-            Page<Auction> auctions = (status == null)
-                    ? auctionRepository.findAllWithProduct(pageable)
-                    : auctionRepository.findByStatusWithProduct(status, pageable);
-
-            // 이 페이지의 경매 ID를 모아서 입찰 수를 한 번에 조회
-            List<Long> auctionIds = auctions.getContent().stream()
-                    .map(Auction::getId)
-                    .toList();
-
-            Map<Long, Long> bidCountMap = getBidCountMap(auctionIds);
-
-            return PageResponse.from(
-                    auctions.map(a -> toSummaryResponse(a, bidCountMap.getOrDefault(a.getId(), 0L)))
-            );
-        }
-
-        // A-03. 경매 상세
-        public AuctionDetailResponse getDetail(Long id) {
-            Auction auction = auctionRepository.findByIdWithProduct(id)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.AUCTION_NOT_FOUND));
-
-            return toDetailResponse(auction, bidRepository.countByAuctionId(id));
-        }
-
-        // ===== 내부 공통 =====
-
-        private Map<Long, Long> getBidCountMap(List<Long> auctionIds) {
-            if (auctionIds.isEmpty()) {
-                return Map.of();
-            }
-            return bidRepository.countByAuctionIds(auctionIds).stream()
-                    .collect(Collectors.toMap(
-                            row -> (Long) row[0],
-                            row -> (Long) row[1]
-                    ));
-        }
-
-        private AuctionDetailResponse toDetailResponse(Auction auction) {
-            return AuctionDetailResponse.builder()
-                    .id(auction.getId())
-                    .status(auction.getStatus())
-                    .startPrice(auction.getStartPrice())
-                    .currentPrice(auction.getCurrentPrice())
-                    .minBidAmount(auction.getCurrentPrice() + MIN_BID_INCREMENT)
-                    .startAt(auction.getStartAt())
-                    .endAt(auction.getEndAt())
-                    .createdAt(auction.getCreatedAt())
-                    .bidCount(bidRepository.countByAuctionId(auction.getId()))
-                    .product(toProductSummary(auction.getProduct()))
-                    .build();
-        }
-
-        private AuctionDetailResponse toDetailResponse(Auction auction, long bidCount) {
-            return AuctionDetailResponse.builder()
-                    .id(auction.getId())
-                    .status(auction.getStatus())
-                    .startPrice(auction.getStartPrice())
-                    .currentPrice(auction.getCurrentPrice())
-                    .minBidAmount(auction.getCurrentPrice() + MIN_BID_INCREMENT)
-                    .startAt(auction.getStartAt())
-                    .endAt(auction.getEndAt())
-                    .createdAt(auction.getCreatedAt())
-                    .bidCount(bidCount)
-                    .product(toProductSummary(auction.getProduct()))
-                    .build();
-        }
-
-        private AuctionSummaryResponse toSummaryResponse(Auction auction, long bidCount) {
-            return AuctionSummaryResponse.builder()
-                    .id(auction.getId())
-                    .status(auction.getStatus())
-                    .currentPrice(auction.getCurrentPrice())
-                    .endAt(auction.getEndAt())
-                    .bidCount(bidCount)
-                    .product(toProductSummary(auction.getProduct()))
-                    .build();
-        }
-        // 이게 날라간거였음
-        private ProductSummaryResponse toProductSummary(Product product) {
-            return ProductSummaryResponse.builder()
-                    .id(product.getId())
-                    .name(product.getName())
-                    .imageUrl(product.getImageUrl())
-                    .itemCondition(product.getItemCondition())
-                    .rarity(product.getRarity())
-                    .estimatedValue(product.getEstimatedValue())
-                    .build();
-        }
     }
 }
