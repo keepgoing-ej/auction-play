@@ -36,8 +36,8 @@
 | 항목 | 내용 |
 |---|---|
 | 도메인 | 가상 포인트 기반 경매 |
-| 규모 | 테이블 7개 · 클래스 약 52개 · 테스트 19건 |
-| 기간 | 2026.08.14 ~ 08.27 (약 23시간) |
+| 규모 | 테이블 7개 · 클래스 약 55개 · 테스트 20건 |
+| 기간 | 2026.08.14 ~ 08.30 (약 28시간) |
 | 인원 | 1인 |
 
 ### 왜 이 주제인가
@@ -71,7 +71,7 @@
 | Framework | Spring Boot 4.1.0 |
 | ORM | Spring Data JPA / Hibernate 7.4 |
 | Database | MySQL 8.0 (Docker) |
-| Security | Spring Security |
+| Security | Spring Security + JWT (jjwt 0.12.6) |
 | Build | Gradle |
 | Test | JUnit 5, AssertJ |
 
@@ -187,25 +187,35 @@ AuctionResult (N) >── (1) User   [winner, nullable]
 
 ## 6. API 명세
 
+> 🔒 표시는 인증(JWT) 필요. `Authorization: Bearer {token}` 헤더로 접근한다.
+> 상품·경매 **조회(GET)** 는 열려 있고, 등록·입찰 등 쓰기 작업은 인증이 필요하다.
+
+### 인증 / 회원
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| POST | `/api/auth/signup` | 회원가입 (BCrypt 해싱, 이메일 중복 검사) |
+| POST | `/api/auth/login` | 로그인 → Access Token 발급 |
+
 ### 상품
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| POST | `/api/products` | 상품 등록 |
+| POST 🔒 | `/api/products` | 상품 등록 |
 | GET | `/api/products` | 목록 (페이징) |
 | GET | `/api/products/{id}` | 상세 |
-| PATCH | `/api/products/{id}` | 부분 수정 |
-| DELETE | `/api/products/{id}` | 삭제 |
-| POST | `/api/products/{id}/view` | **조회 인정** (5초 체류 후) |
+| PATCH 🔒 | `/api/products/{id}` | 부분 수정 |
+| DELETE 🔒 | `/api/products/{id}` | 삭제 |
+| POST 🔒 | `/api/products/{id}/view` | **조회 인정** (5초 체류 후) — 사용자는 토큰에서 식별 |
 
 ### 경매
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| POST | `/api/auctions` | 경매 등록 |
+| POST 🔒 | `/api/auctions` | 경매 등록 |
 | GET | `/api/auctions?status=` | 목록 (상태 필터) |
 | GET | `/api/auctions/{id}` | 상세 |
-| POST | `/api/auctions/{id}/bids` | **입찰** ⭐ |
+| POST 🔒 | `/api/auctions/{id}/bids` | **입찰** ⭐ — 입찰자는 토큰에서 식별 |
 | GET | `/api/auctions/{id}/bids` | 입찰 이력 |
 
 ### 에러 응답 형식
@@ -344,6 +354,56 @@ public void run() {
 이 프로젝트의 핵심입니다. **문제를 재현한 뒤 해결했습니다.**
 
 자세한 내용은 [8-2 트러블슈팅](#8-2-동시-입찰-시-포인트-이중-보류)에 있습니다.
+
+---
+
+### 7-4. 인증 — 토큰으로 사용자를 식별한다
+
+초기에는 `userId`를 요청 본문으로 받았습니다. **남의 ID로 입찰이 가능한 구조**였습니다.
+
+```json
+{ "userId": 1, "amount": 10000 }   // 누구나 1번 사용자인 척 가능
+```
+
+JWT 기반 인증으로 이 구멍을 막았습니다.
+
+#### 흐름
+
+```
+로그인  →  Access Token 발급 (userId를 subject에 담음)
+요청    →  Authorization: Bearer {token}
+필터    →  토큰 검증 후 SecurityContext에 userId 등록
+컨트롤러 →  @AuthenticationPrincipal로 userId 추출
+```
+
+본문에서 `userId`를 완전히 제거하고, **입찰·조회인정은 토큰에서 꺼낸 사용자**로만 동작합니다.
+
+```java
+@PostMapping
+public ResponseEntity<BidCreateResponse> bid(
+        @PathVariable Long auctionId,
+        @AuthenticationPrincipal Long userId,   // 토큰에서 추출
+        @Valid @RequestBody BidCreateRequest request) {   // amount만 받음
+```
+
+#### 설계 선택
+
+| 항목 | 선택 | 이유 |
+|---|---|---|
+| 토큰 | Access Token 단일 (24h) | 포트폴리오 범위. Refresh는 과함 |
+| 비밀번호 | BCrypt | 솔트 자동 적용. `matches`로 검증 |
+| 세션 | STATELESS | 토큰 자체가 신분증, 서버가 상태를 안 가짐 |
+| 로그인 실패 | 이메일/비밀번호 구분 안 함 | 가입된 이메일 식별 공격 차단 |
+
+#### 경로별 권한
+
+| 경로 | 권한 |
+|---|---|
+| `/api/auth/**` | 전체 (로그인 전 접근) |
+| `GET /api/products/**`, `GET /api/auctions/**` | 전체 (조회는 열림) |
+| 그 외 (입찰·등록 등) | 인증 필요 |
+
+**검증** — 토큰 없이 보호 경로 접근 시 차단, 토큰 있으면 통과. 입찰 시 본문에 `amount`만 보내도 토큰의 사용자로 정상 처리되는 것을 확인했습니다.
 
 ---
 
@@ -577,11 +637,11 @@ DB 설계 단계에서 `item_condition`으로 변경하고 Entity에서 컬럼�
 
 ## 9. 테스트
 
-**통합 테스트 19건.** `@SpringBootTest` + `@Transactional`
+**통합 테스트 20건.** `@SpringBootTest` + `@Transactional`
 
 | 클래스 | 건수 | 검증 대상 |
 |---|---|---|
-| `BidServiceTest` | 13 | 검증 11단계, 포인트 보류/환급, 롤백, 정합성 |
+| `BidServiceTest` | 14 | 검증 11단계, 포인트 보류/환급, 롤백, 정합성 |
 | `AuctionCloseServiceTest` | 5 | 상태 전이, 낙찰/유찰, 이중 차감 방지, 중복 처리 |
 | `BidConcurrencyTest` | 1 | 동시 입찰 정합성 (락 적용 전후 비교) |
 
@@ -599,8 +659,8 @@ Repository를 가짜로 대체하는 단위 테스트로는 트랜잭션 동작�
 **① 환급**
 
 ```java
-bidService.bid(auctionId, 입찰요청(A, 11000L));
-bidService.bid(auctionId, 입찰요청(B, 12000L));
+bidService.bid(auctionId, A.getId(), 입찰요청(11000L));
+bidService.bid(auctionId, B.getId(), 입찰요청(12000L));
 
 assertThat(A.getPoint()).isEqualTo(100000L);   // 밀렸으므로 복구
 assertThat(B.getPoint()).isEqualTo(88000L);    // 보류 중
@@ -726,15 +786,17 @@ Setter를 열면 어디서든 값이 바뀌어 **변경 지점을 추적할 수 
 
 | 항목 | 내용 | 대응 계획 |
 |---|---|---|
-| **인증 미구현** | `userId`를 요청 본문으로 받음. 남의 ID로 입찰 가능 | JWT 도입 후 토큰에서 추출 |
 | **단일 서버 전제** | 서버를 여러 대 띄우면 Scheduler가 각자 실행됨 | Redis 분산 락 또는 ShedLock |
 | `ddl-auto: update` | 운영에서 사용 불가 | `validate` + Flyway |
 | 5초 체류 검증 | 클라이언트를 신뢰하는 구조 | 게임 규칙이므로 허용 범위로 판단 |
-| `SecurityConfig` | 전 경로 개방 | 인증 도입 시 경로별 권한 설정 |
+| Refresh Token 없음 | Access Token(24h) 단일. 만료 시 재로그인 필요 | 회전 방식 Refresh Token 도입 검토 |
+| 미인증 응답이 403 | 토큰 없는 접근에 401이 아닌 403 반환 (Security 기본 동작) | `AuthenticationEntryPoint` 커스터마이징으로 401 구분 |
+
+> **인증(JWT)은 구현 완료.** 회원가입·로그인 API, 토큰 발급·검증 필터, 경로별 권한 설정, 입찰·조회인정의 사용자 식별을 토큰 기반으로 처리한다. (7-4 참조)
 
 ### 개선 계획
 
-- [ ] JWT 인증
+- [x] JWT 인증
 - [ ] React 프론트엔드 (시안 기반)
 - [ ] Docker Compose + AWS 배포
 - [ ] NPC 자동 입찰 (최대 지불 의향 기반)
@@ -764,4 +826,6 @@ Setter를 열면 어디서든 값이 바뀌어 **변경 지점을 추적할 수 
 | 08.23 | **입찰 API** (트랜잭션 · 포인트 보류/환급) |
 | 08.24 | Scheduler 자동 종료 |
 | 08.25 | **동시성 제어** (재현 → 비관적 락 → 검증) |
-| 08.26~27 | 테스트 코드 19건 |
+| 08.26~27 | 테스트 코드 |
+| 08.29 | **JWT 인증** (발급·검증 필터, 로그인/회원가입, 경로별 권한) |
+| 08.30 | 본문 `userId` 제거 → 토큰 추출, 테스트 수정 (전체 20건 통과) |
