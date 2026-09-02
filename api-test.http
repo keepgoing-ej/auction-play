@@ -393,3 +393,13 @@ Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxMDgiLCJpYXQiOjE3ODgwNzU3M
 {
   "amount": 6000
 }
+
+### 회원가입 (프론트 테스트용 계정)
+POST http://localhost:8080/api/auth/signup
+Content-Type: application/json
+
+{
+  "email": "test2@test.com",
+  "password": "test1234",
+  "nickname": "프론트테스터"
+}
